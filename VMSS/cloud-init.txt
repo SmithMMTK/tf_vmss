@@ -1,0 +1,56 @@
+#cloud-config
+package_upgrade: true
+packages:
+  - nginx
+  - nodejs
+  - npm
+write_files:
+  - owner: azureuser:azureuser
+  - path: /home/azureuser/boot_log.txt
+    contents: |
+      Starting boot process
+      Creat boot_log.txt
+      ______________________
+  - owner: www-data:www-data
+  - path: /etc/nginx/sites-available/default
+    content: |
+      server {
+        listen 80;
+        location / {
+          proxy_pass http://localhost:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection keep-alive;
+          proxy_set_header Host $host;
+          proxy_cache_bypass $http_upgrade;
+        }
+      }
+  - owener: azureuser:azureuser
+  - path: /var/lib/cloud/scripts/per-boot/start.sh
+    contents: |
+      cd "/home/azureuser/myapp"
+      nodejs index.js
+  - owner: azureuser:azureuser
+  - path: /home/azureuser/myapp/index.js
+    content: |
+      var express = require('express')
+      var app = express()
+      var os = require('os');
+      app.get('/', function (req, res) {
+        res.send('Hello World from host at: ' + Date(Date.now()).toLocaleString() + ' by: ' + os.hostname() + '!')
+      })
+      app.listen(3000, function () {
+        console.log('Hello world app listening on port 3000!')
+      })
+runcmd:
+  - echo "Add start-up script to run after reboot" >> /home/azureuser/boot_log.txt
+  - sudo sed -i 's/scripts-user$/\[scripts-user, always\]/' /etc/cloud/cloud.cfg
+  - echo "Restart nginx" >> /home/azureuser/boot_log.txt
+  - service nginx restart
+  - cd "/home/azureuser/myapp"
+  - echo "Initialize npm" >> /home/azureuser/boot_log.txt
+  - npm init
+  - echo "Install express" >> /home/azureuser/boot_log.txt
+  - npm install express -y
+  - echo "Done." >> /home/azureuser/boot_log.txt
+  - nodejs index.js
